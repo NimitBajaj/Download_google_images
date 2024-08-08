@@ -28,8 +28,11 @@ def download_images():
 
     try:
         gis.search(search_params=search_params)
-        for image in gis.results():
-            image.download(download_path) 
+        progress_bar["maximum"] = num_images
+        for i, image in enumerate(gis.results(), start=1):
+            image.download(download_path)
+            progress_bar["value"] = i
+            root.update_idletasks()
         messagebox.showinfo("Success", f"{num_images} images downloaded successfully to {download_path}!")
     except Exception as e:
         messagebox.showerror("Error", str(e))
@@ -69,6 +72,8 @@ safe_search_dropdown = ttk.Combobox(root, textvariable=safe_search_var, values=[
 safe_search_dropdown.grid(row=4, column=1, padx=10, pady=5)
 safe_search_dropdown.current(0)  
 
+progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+progress_bar.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
 
 download_button = ttk.Button(root, text="Download Images", command=download_images)
 download_button.grid(row=5, column=0, columnspan=2, padx=10, pady=20)
