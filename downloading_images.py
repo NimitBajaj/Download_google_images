@@ -1,85 +1,117 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
 from google_images_search import GoogleImagesSearch
-from credentials import developers_api_key, project_cx
-import os
+from credentials import project_cx, developers_api_key, email, password
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
+from io import BytesIO
+import zipfile
 
 
 gis = GoogleImagesSearch(developers_api_key, project_cx)
 
-def download_images():
-    query = search_query.get()
-    num_images = int(num_images_var.get())
-    file_type = file_type_var.get()
-    img_size = img_size_var.get()
-    safe_search = safe_search_var.get()
+class GoogleImageEmailer:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Google Images to Email")
+        self.root.geometry("600x400")
+        self.root.config(bg="#ffffff")
 
-    download_path = os.path.join('C:/Users/nimit/Download_google_images', query)
-    if not os.path.exists(download_path):
-        os.makedirs(download_path)
+        self.create_widgets()
 
-    search_params = {
-        'q': query,
-        'num': num_images,
-        'fileType': file_type,
-        'imgSize': img_size,
-        'safe': safe_search
-    }
+    def create_widgets(self):
+        tk.Label(self.root, text="Google Images to Email", font=("Helvetica", 16, "bold"), bg="#ffffff").pack(pady=20)
 
-    try:
-        gis.search(search_params=search_params)
-        progress_bar["maximum"] = num_images
-        for i, image in enumerate(gis.results(), start=1):
-            image.download(download_path)
-            progress_bar["value"] = i
-            root.update_idletasks()
-        messagebox.showinfo("Success", f"{num_images} images downloaded successfully to {download_path}!")
-    except Exception as e:
-        messagebox.showerror("Error", str(e))
+        tk.Label(self.root, text="Search Query:", bg="#ffffff").pack(pady=5)
+        self.search_query = tk.Entry(self.root, width=40, borderwidth=2)
+        self.search_query.pack(pady=5)
 
+        tk.Label(self.root, text="Number of Images:", bg="#ffffff").pack(pady=5)
+        self.num_images_var = tk.StringVar(value="10")
+        self.num_images_entry = tk.Entry(self.root, textvariable=self.num_images_var, width=10, borderwidth=2)
+        self.num_images_entry.pack(pady=5)
 
-root = tk.Tk()
-root.title("Google Image Downloader")
+        tk.Label(self.root, text="Your Email Address:", bg="#ffffff").pack(pady=5)
+        self.email_entry = tk.Entry(self.root, width=40, borderwidth=2)
+        self.email_entry.pack(pady=5)
 
+        self.send_button = tk.Button(self.root, text="Send via Email", command=self.download_images, bg="#4CAF50", fg="white", font=("Helvetica", 12, "bold"), borderwidth=2)
+        self.send_button.pack(pady=20)
 
-ttk.Label(root, text="Search Query:").grid(row=0, column=0, padx=10, pady=5)
-search_query = ttk.Entry(root, width=30)
-search_query.grid(row=0, column=1, padx=10, pady=5)
+        self.progress_bar = ttk.Progressbar(self.root, orient="horizontal", length=400, mode="determinate")
+        self.progress_bar.pack(pady=10)
 
-ttk.Label(root, text="Number of Images:").grid(row=1, column=0, padx=10, pady=5)
-num_images_var = tk.StringVar(value="10")
-num_images_entry = ttk.Entry(root, textvariable=num_images_var, width=10)
-num_images_entry.grid(row=1, column=1, padx=10, pady=5)
+    def send_email_with_zip(self, email_address, zip_data):
+        smtp_server = 'smtp.gmail.com'
+        smtp_port = 587
+        sender_email = email
+        sender_password = password
 
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = email_address
+        msg['Subject'] = 'Downloaded Images'
 
-ttk.Label(root, text="File Type:").grid(row=2, column=0, padx=10, pady=5)
-file_type_var = tk.StringVar()
-file_type_dropdown = ttk.Combobox(root, textvariable=file_type_var, values=["jpg", "png", "gif"], width=10)
-file_type_dropdown.grid(row=2, column=1, padx=10, pady=5)
-file_type_dropdown.current(0) 
+        msg.attach(MIMEText('Here are the images you requested in a ZIP file.', 'plain'))
 
+        part = MIMEApplication(zip_data.getvalue(), Name='images.zip')
+        part['Content-Disposition'] = 'attachment; filename="images.zip"'
+        msg.attach(part)
 
-ttk.Label(root, text="Image Size:").grid(row=3, column=0, padx=10, pady=5)
-img_size_var = tk.StringVar()
-img_size_dropdown = ttk.Combobox(root, textvariable=img_size_var, values=["large", "medium", "icon"], width=10)
-img_size_dropdown.grid(row=3, column=1, padx=10, pady=5)
-img_size_dropdown.current(0)  
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
 
+    def download_images(self):
+        query = self.search_query.get()
+        num_images = int(self.num_images_var.get())
+        email_address = self.email_entry.get()
 
-ttk.Label(root, text="Safe Search:").grid(row=4, column=0, padx=10, pady=5)
-safe_search_var = tk.StringVar()
-safe_search_dropdown = ttk.Combobox(root, textvariable=safe_search_var, values=["high", "medium", "off"], width=10)
-safe_search_dropdown.grid(row=4, column=1, padx=10, pady=5)
-safe_search_dropdown.current(0)  
+        search_params = {
+            'q': query,
+            'num': num_images,
+            'fileType': 'jpg',
+            'imgSize': 'medium',
+            'safe': 'high'
+        }
 
-progress_bar = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
-progress_bar.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
+        try:
+            gis.search(search_params=search_params)
+            self.progress_bar["maximum"] = num_images
 
-download_button = ttk.Button(root, text="Download Images", command=download_images)
-download_button.grid(row=5, column=0, columnspan=2, padx=10, pady=20)
+            # Create a ZIP file in memory
+            zip_buffer = BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+                for i, image in enumerate(gis.results(), start=1):
+                    img_data = BytesIO()
+                    try:
+                        image.download(img_data)
+                        img_name = f"{query}_{i}.jpg"
+                        img_data.seek(0)  
+                        zip_file.writestr(img_name, img_data.read())  
+                    except Exception as e:
+                        print(f"Error downloading image {i}: {e}")
+                        continue
 
+                    
+                    self.progress_bar["value"] = i
+                    self.root.update_idletasks()
 
-root.mainloop()
+            zip_buffer.seek(0)  
+
+            self.send_email_with_zip(email_address, zip_buffer)
+            messagebox.showinfo("Success", f"{num_images} images sent successfully to {email_address}!")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = GoogleImageEmailer(root)
+    root.mainloop()
 
 
 
